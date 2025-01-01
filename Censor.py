@@ -37,7 +37,7 @@ class Censor(wx.Frame):
 		return (rSize, bSize)
 
 	def OnEnterWindow(self, event):
-		insideBox = True
+		insideBox = True # Note: Fix bug where cursor teleports into the box.
 		size = self.GetSize()
 		newSize = self.GetSize()
 		mouse = event.GetPosition()
@@ -47,14 +47,16 @@ class Censor(wx.Frame):
 		if size.width - rSize <= mouse.x <= size.width and size.height - bSize <= mouse.y <= size.height:
 			insideBox = False
 			print("Little square!")
-			pass # TODO: handler
+			pass # TODO: handler which teleports cursur a little away.
 		else:
 			if size.width-rSize <= mouse.x <= size.width: # Right side shrink
 				newSize.width = size.width - 10
 				insideBox = False
-			if size.height-bSize <= mouse.y <= size.height: # Bottom side shrink
+				self.lastShrinking = 'r'
+			elif size.height-bSize <= mouse.y <= size.height: # Bottom side shrink
 				newSize.height = size.height - 10
 				insideBox = False
+				self.lastShrinking = 'b'
 
 		self.insideBox = insideBox
 		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
@@ -68,12 +70,12 @@ class Censor(wx.Frame):
 
 		if self.insideBox: # Ignore leaving window in shrinking & ignore leaving the bottom right square
 			if size.width - rSize <= mouse.x: # Right side expand
-				print("Expanding right side overrun!")
+				newSize.width += 50
 			if size.height - bSize <= mouse.y: # Bottom side expand
-				print("Expanding bottom side overrun!")
+				newSize.height += 50
 
+		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
 		self.insideBox = insideBox
-		print(mouse)
 
 	def OnMouse(self, event):
 		# Moving the window
@@ -88,24 +90,24 @@ class Censor(wx.Frame):
 		else:
 			self.dragPos = None
 
+		size = self.GetSize()
+		newSize = self.GetSize()
+		mouse = event.GetPosition()
+		rSize, bSize = self.getRegionSize(size)
 		if self.insideBox: # Expanding
-			self.dragPos = None
-			size = self.GetSize()
-			newSize = self.GetSize()
-			mouse = event.GetPosition()
-			rSize, bSize = self.getRegionSize(size)
-
-			# The bottom right square expands both from inside.
-
+			# Note that the bottom right square expands both from inside.
 			if size.width - rSize <= mouse.x <= size.width: # Right side expand
 				newSize.width = size.width + 10
 
 			if size.height - bSize <= mouse.y <= size.height: # Bottom side expand
 				newSize.height = size.height + 10
+		else: # Handle shrinking overrun
+			if self.lastShrinking == 'r':
+				newSize.width -= 3 * (size.width-mouse.x) + 30
+			elif self.lastShrinking == 'b':
+				newSize.height -= 3 * (size.height-mouse.y) + 30
 
-			self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
-		else:
-			print("Shrinking overrun!")
+		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
 
 app = wx.App()
 f = Censor()
