@@ -2,6 +2,10 @@ import wx
 import pyautogui as pag
 pag.PAUSE = 0
 
+# The first run is slow and would cause issues downstream if this is not done (ugly solution)
+pag.move(1, 0) 
+pag.move(-1, 0)
+
 class Censor(wx.Frame):
 	censors = []
 	@classmethod
@@ -39,8 +43,10 @@ class Censor(wx.Frame):
 
 	def handleSquare(self):
 		self.currentCensor = (self.currentCensor + 1) % len(self.censors)
+		print(f"Now using censor {self.currentCensor}")
+		self.OnPaint()
 
-	def OnPaint(self, event):
+	def OnPaint(self, event=None):
 		self.censors[self.currentCensor][1](self, event)
 
 	def resize(self, newSize, render = True):
@@ -62,6 +68,7 @@ class Censor(wx.Frame):
 		return (rSize, bSize)
 
 	def OnEnterWindow(self, event):
+		print(f"Entered, {event.GetPosition()}")
 		if self.dragPos is not None: # Ignore everything which happens during a drag to avoid resizing
 			return
 		insideBox = True 
@@ -94,6 +101,7 @@ class Censor(wx.Frame):
 		self.insideBox = insideBox
 
 	def OnLeaveWindow(self, event):
+		print("Left")
 		if self.dragPos is not None: # Ignore everything which happens during a drag to avoid resizing
 			return
 		size = self.GetSize()
@@ -108,11 +116,11 @@ class Censor(wx.Frame):
 			if size.width - rSize <= mouse.x: # Right side expand overrun
 				newSize.width += 60
 				self.resize(newSize)
-				print("Expansion overrun right")
+				# print("Expansion overrun right")
 			if size.height - bSize <= mouse.y: # Bottom side expand overrun
 				newSize.height += 60
 				self.resize(newSize)
-				print("Expansion overrun bottom")
+				# print("Expansion overrun bottom")
 
 		self.insideBox = False
 
@@ -139,22 +147,23 @@ class Censor(wx.Frame):
 				newSize.width = size.width + 10
 				self.resize(newSize)
 				self.lastChange = "r+"
-				print("Growing right")
+				# print("Growing right")
 			if size.height - bSize <= mouse.y <= size.height: # Bottom side expand
 				newSize.height = size.height + 10
 				self.resize(newSize)
 				self.lastChange = "b+"
-				print("Growing bottom")
-		else: # Shrinking extensions. TODO: Overruns where the cursor teleports past the trigger region are not handled.
+				# print("Growing bottom")
+		else: # Shrinking extensions. 
+			# TODO: Overruns where the cursor teleports past the trigger region are not handled.
 			# TODO: Going in from the far right of the top side at an angle directly downwards causes a huge shrink
 			if self.lastChange == "r-" and size.width != self.minSize:
 				newSize.width -= 3 * (size.width-mouse.x) + 30
 				self.resize(newSize)
-				print("Shrink overrun right")
+				# print("Shrink overrun right")
 			elif self.lastChange == "b-" and size.height != self.minSize:
 				newSize.height -= 3 * (size.height-mouse.y) + 30
 				self.resize(newSize)
-				print("Shrink overrun bottom")
+				# print("Shrink overrun bottom")
 
 @Censor.censor
 def black(self, event):
@@ -162,6 +171,15 @@ def black(self, event):
 	dc.Clear()
 	size = self.GetSize()
 	self.buffer.Clear()
+
+	dc.DrawBitmap(wx.Bitmap(self.buffer), 0, 0)
+
+@Censor.censor
+def white(self, event):
+	dc = wx.PaintDC(self)
+	dc.Clear()
+	size = self.GetSize()
+	self.buffer.Clear(value = bytes([255]))
 
 	dc.DrawBitmap(wx.Bitmap(self.buffer), 0, 0)
 
