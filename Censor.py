@@ -1,6 +1,13 @@
 import wx
+import pyautogui as pag
+pag.PAUSE = 0
 
 class Censor(wx.Frame):
+	censors = []
+	@classmethod
+	def censor(cls, function):
+		cls.censors.append([function.__name__, function])
+
 	def __init__(self):
 		style = ( wx.CLIP_CHILDREN | wx.STAY_ON_TOP | wx.FRAME_NO_TASKBAR |
 				  wx.NO_BORDER | wx.FRAME_SHAPED  )
@@ -10,72 +17,104 @@ class Censor(wx.Frame):
 		self.Bind(wx.EVT_MOTION, self.OnMouse)
 		self.Bind(wx.EVT_ENTER_WINDOW, self.OnEnterWindow)
 		self.Bind(wx.EVT_LEAVE_WINDOW, self.OnLeaveWindow)
+		self.Bind(wx.EVT_PAINT, self.OnPaint)
 		self.Show(True)
 
-		height = 50
+		height = 50 # Initial dimensions
 		width = 50
-		self.SetSize((height, width))
+
+		self.currentCensor = 0 # Index of current censor
+
+		self.minSize = 20 # Minimum height & width
+		self.resize(wx.Size(height, width))
 
 		screenSize = wx.DisplaySize() # Place at center of screen
 		self.SetPosition((screenSize[0]//2 - width//2, screenSize[1]//2 - height//2))
 
-		self.minSize = 20 # Minimum height & width
 		self.insideBox = None # If the cursor is inside the box for the long term, not just entering to shrink
-		self.lastShrinking = None # Used if shrinking overrun
+		self.lastChange = None # Used by shrinking overrun & checking expansion overrun
 
 	def OnKeyUp(self, event):
 		event.Skip() # Ignore keyboard inputs.
 
-	def getRegionSize(self, size):
-		if size.width >= 30: rSize = 20 # Width of a region in the right side
+	def handleSquare(self):
+		self.currentCensor = (self.currentCensor + 1) % len(self.censors)
+
+	def OnPaint(self, event):
+		self.censors[self.currentCensor][1](self, event)
+
+	def resize(self, newSize, render = True):
+		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
+		self.buffer = wx.Image(self.GetSize())
+
+	def getRegionSize(self, size, bigger = False):
+		# Width of a region in the right side
+		if bigger and size.width >= 60: rSize = 40 
+		elif size.width >= 30: rSize = 20 
 		elif size.width > 20: rSize = 10
 		else: rSize = 5
 
-		if size.height >= 30: bSize = 20 # Width of a region in the bottom side
+		# Width of a region in the bottom side
+		if bigger and size.height >= 60: bSize = 40 
+		elif size.height >= 30: bSize = 20 
 		elif size.height > 20: bSize = 10
 		else: bSize = 5
 		return (rSize, bSize)
 
 	def OnEnterWindow(self, event):
-		insideBox = True # Note: Fix bug where cursor teleports into the box.
+		if self.dragPos is not None: # Ignore everything which happens during a drag to avoid resizing
+			return
+		insideBox = True 
 		size = self.GetSize()
 		newSize = self.GetSize()
 		mouse = event.GetPosition()
-		rSize, bSize = self.getRegionSize(size)
+		rSize, bSize = self.getRegionSize(size, bigger = True) # Make it bigger to reduce overruns
 
 		#Bottom right square
 		if size.width - rSize <= mouse.x <= size.width and size.height - bSize <= mouse.y <= size.height:
 			insideBox = False
-			print("Little square!")
-			pass # TODO: handler which teleports cursur a little away.
+			pag.move(rSize, bSize) # Teleport cursor away from the box
+			self.handleSquare()
 		else:
 			if size.width-rSize <= mouse.x <= size.width: # Right side shrink
 				newSize.width = size.width - 10
 				insideBox = False
-				self.lastShrinking = 'r'
+				self.lastChange = "r-"
+				self.resize(newSize)
+				print("Shrinking right")
 			elif size.height-bSize <= mouse.y <= size.height: # Bottom side shrink
 				newSize.height = size.height - 10
 				insideBox = False
-				self.lastShrinking = 'b'
+				self.lastChange = "b-"
+				self.resize(newSize)
+				print("Shrinking bottom")
 
+		if insideBox:
+			print("Now inside.")
 		self.insideBox = insideBox
-		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
 
 	def OnLeaveWindow(self, event):
-		insideBox = False
+		if self.dragPos is not None: # Ignore everything which happens during a drag to avoid resizing
+			return
 		size = self.GetSize()
 		newSize = self.GetSize()
 		mouse = event.GetPosition()
 		rSize, bSize = self.getRegionSize(size)
 
-		if self.insideBox: # Ignore leaving window in shrinking & ignore leaving the bottom right square
-			if size.width - rSize <= mouse.x: # Right side expand
-				newSize.width += 50
-			if size.height - bSize <= mouse.y: # Bottom side expand
-				newSize.height += 50
+		# Expansion overruns
+		# Ignore if leaving window in shrinking & ignore if leaving the bottom right square
+		# Last change must be an expansion or it is probably a late resize.
+		if self.lastChange and self.lastChange[1] == '+' and self.insideBox: 
+			if size.width - rSize <= mouse.x: # Right side expand overrun
+				newSize.width += 60
+				self.resize(newSize)
+				print("Expansion overrun right")
+			if size.height - bSize <= mouse.y: # Bottom side expand overrun
+				newSize.height += 60
+				self.resize(newSize)
+				print("Expansion overrun bottom")
 
-		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
-		self.insideBox = insideBox
+		self.insideBox = False
 
 	def OnMouse(self, event):
 		# Moving the window
@@ -98,16 +137,33 @@ class Censor(wx.Frame):
 			# Note that the bottom right square expands both from inside.
 			if size.width - rSize <= mouse.x <= size.width: # Right side expand
 				newSize.width = size.width + 10
-
+				self.resize(newSize)
+				self.lastChange = "r+"
+				print("Growing right")
 			if size.height - bSize <= mouse.y <= size.height: # Bottom side expand
 				newSize.height = size.height + 10
-		else: # Handle shrinking overrun
-			if self.lastShrinking == 'r':
+				self.resize(newSize)
+				self.lastChange = "b+"
+				print("Growing bottom")
+		else: # Shrinking extensions. TODO: Overruns where the cursor teleports past the trigger region are not handled.
+			# TODO: Going in from the far right of the top side at an angle directly downwards causes a huge shrink
+			if self.lastChange == "r-" and size.width != self.minSize:
 				newSize.width -= 3 * (size.width-mouse.x) + 30
-			elif self.lastShrinking == 'b':
+				self.resize(newSize)
+				print("Shrink overrun right")
+			elif self.lastChange == "b-" and size.height != self.minSize:
 				newSize.height -= 3 * (size.height-mouse.y) + 30
+				self.resize(newSize)
+				print("Shrink overrun bottom")
 
-		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
+@Censor.censor
+def black(self, event):
+	dc = wx.PaintDC(self)
+	dc.Clear()
+	size = self.GetSize()
+	self.buffer.Clear()
+
+	dc.DrawBitmap(wx.Bitmap(self.buffer), 0, 0)
 
 app = wx.App()
 f = Censor()
