@@ -6,14 +6,74 @@ class Censor(wx.Frame):
 				  wx.NO_BORDER | wx.FRAME_SHAPED  )
 		wx.Frame.__init__(self, None, title='Censor', style = style)
 		self.dragPos = None
-		self.Bind(wx.EVT_KEY_UP, self.OnKeyDown)
+		self.Bind(wx.EVT_KEY_UP, self.OnKeyUp)
 		self.Bind(wx.EVT_MOTION, self.OnMouse)
+		self.Bind(wx.EVT_ENTER_WINDOW, self.OnEnterWindow)
+		self.Bind(wx.EVT_LEAVE_WINDOW, self.OnLeaveWindow)
 		self.Show(True)
-		self.SetSize((50, 50))
-		self.SetPosition((50,50))
 
-	def OnKeyDown(self, event):
+		height = 50
+		width = 50
+		self.SetSize((height, width))
+
+		screenSize = wx.DisplaySize() # Place at center of screen
+		self.SetPosition((screenSize[0]//2 - width//2, screenSize[1]//2 - height//2))
+
+		self.minSize = 20 # Minimum height & width
+		self.insideBox = None # If the cursor is inside the box for the long term, not just entering to shrink
+		self.lastShrinking = None # Used if shrinking overrun
+
+	def OnKeyUp(self, event):
 		event.Skip() # Ignore keyboard inputs.
+
+	def getRegionSize(self, size):
+		if size.width >= 30: rSize = 20 # Width of a region in the right side
+		elif size.width > 20: rSize = 10
+		else: rSize = 5
+
+		if size.height >= 30: bSize = 20 # Width of a region in the bottom side
+		elif size.height > 20: bSize = 10
+		else: bSize = 5
+		return (rSize, bSize)
+
+	def OnEnterWindow(self, event):
+		insideBox = True
+		size = self.GetSize()
+		newSize = self.GetSize()
+		mouse = event.GetPosition()
+		rSize, bSize = self.getRegionSize(size)
+
+		#Bottom right square
+		if size.width - rSize <= mouse.x <= size.width and size.height - bSize <= mouse.y <= size.height:
+			insideBox = False
+			print("Little square!")
+			pass # TODO: handler
+		else:
+			if size.width-rSize <= mouse.x <= size.width: # Right side shrink
+				newSize.width = size.width - 10
+				insideBox = False
+			if size.height-bSize <= mouse.y <= size.height: # Bottom side shrink
+				newSize.height = size.height - 10
+				insideBox = False
+
+		self.insideBox = insideBox
+		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
+
+	def OnLeaveWindow(self, event):
+		insideBox = False
+		size = self.GetSize()
+		newSize = self.GetSize()
+		mouse = event.GetPosition()
+		rSize, bSize = self.getRegionSize(size)
+
+		if self.insideBox: # Ignore leaving window in shrinking & ignore leaving the bottom right square
+			if size.width - rSize <= mouse.x: # Right side expand
+				print("Expanding right side overrun!")
+			if size.height - bSize <= mouse.y: # Bottom side expand
+				print("Expanding bottom side overrun!")
+
+		self.insideBox = insideBox
+		print(mouse)
 
 	def OnMouse(self, event):
 		# Moving the window
@@ -27,33 +87,25 @@ class Censor(wx.Frame):
 			return
 		else:
 			self.dragPos = None
+
+		if self.insideBox: # Expanding
+			self.dragPos = None
 			size = self.GetSize()
 			newSize = self.GetSize()
 			mouse = event.GetPosition()
+			rSize, bSize = self.getRegionSize(size)
 
-			if size.width >= 30:
-				rSize = 10 # Width of a region in the right side
-			else:
-				rSize = 5
-			if size.width-rSize <= mouse.x <= size.width: # Right side shrink
-				newSize.width = size.width - 10
-			elif size.width - (2*rSize) <= mouse.x <= size.width-rSize: # Right side expand
+			# The bottom right square expands both from inside.
+
+			if size.width - rSize <= mouse.x <= size.width: # Right side expand
 				newSize.width = size.width + 10
 
-			if size.height >= 30:
-				bSize = 10 # Width of a region in the bottom side
-			else:
-				bSize = 5
-			if size.height-bSize <= mouse.y <= size.height: # Bottom side shrink
-				newSize.height = size.height - 10
-			elif size.height - (2*bSize) <= mouse.y <= size.height-bSize: # Bottom side expand
+			if size.height - bSize <= mouse.y <= size.height: # Bottom side expand
 				newSize.height = size.height + 10
 
-			if newSize.height < 20:
-				newSize.height = 20
-			if newSize.width < 20:
-				newSize.width = 20
-			self.SetSize(newSize)
+			self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
+		else:
+			print("Shrinking overrun!")
 
 app = wx.App()
 f = Censor()
