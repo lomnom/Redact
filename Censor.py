@@ -15,7 +15,7 @@ class Element:
 	# getRegion(self, frame) returns [x, y, h, w] within which it is considered to be within the element
 	# onClick(self, frame, event) is called on a left click
 	# onDrag(self, frame, event, previous, start, end, dragLength) is called after the first drag event.
-	# render(self, frame, buffer) is called when to render the element when window is in focus.
+	# render(self, frame, dc) is called when to render the element when window is in focus.
 
 	def newPart(self, name):
 		setattr(self, '_'+name, NOTHINGFUNC)
@@ -68,9 +68,12 @@ class Censor(wx.Frame):
 		self.dragElements = None
 		self.dragPrevPos = None
 
-		self.timer = wx.Timer(self)
+		# Update every second
+		self.timer = wx.Timer(self) 
 		self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)
 		self.timer.Start(1000)
+
+		# self.mouseHover = False # If the mouse is currently hovering over the censor
 
 	def resize(self, newSize):
 		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
@@ -97,12 +100,14 @@ class Censor(wx.Frame):
 		dc.Clear()
 
 		self.censors[self.currentCensor][1](self, event, self.buffer)
-		if self.HasFocus():
-			for element in self.elements:
-				element.render(self, self.buffer)
-
 		dc.DrawBitmap(wx.Bitmap(self.buffer), 0, 0) # Commit the buffer
-		print(f"Render took {round(timePoint() - startPoint, 4)}s")
+
+		# if self.HasFocus():
+		# 	print("HAS FOCUS")
+		# 	for element in self.elements:
+		# 		element.render(self, dc)
+
+		# print(f"Render took {round(timePoint() - startPoint, 4)}s")
 
 	def elementsHit(self, x, y):
 		results = []
@@ -113,7 +118,14 @@ class Censor(wx.Frame):
 				results.append(element)
 		return results
 
+	helpText = "Right click to change mode.\n" \
+	           "Drag right or bottom sides to resize.\n" \
+	           "Drag anywhere else to move.\n" \
+	           "Click top left to close \n" \
+	           "Middle click to spawn another censor."
+
 	def OnMouse(self, event):
+		event.GetEventObject().SetToolTip(self.helpText)
 		# Moving the window
 		spot = event.GetPosition()
 		if event.Dragging():
@@ -147,10 +159,10 @@ class Censor(wx.Frame):
 		self.Refresh()
 
 	# def OnEnterWindow(self, event):
-	# 	pass
+	# 	self.mouseHover = True
 
 	# def OnLeaveWindow(self, event):
-	# 	pass
+	# 	self.mouseHover = False
 
 # Let the frame be dragged around
 drag = Element("Dragger")
@@ -204,7 +216,8 @@ def getRegion(self, frame):
 @close.onClickCall
 def onClick(self, frame, event):
 	print("Close button pressed. Closing.")
-	quit() # TODO: is this correct?
+	frame.Close()
+	removeFrame(frame)
 
 # Censors
 @Censor.censor
@@ -231,7 +244,7 @@ def screenshot(x, y, h, w):
 
 offset = 1 # Distance from window to capture
 @Censor.censor
-def camouflage(frame, event, buffer): 
+def camouflage(frame, event, buffer): # TODO: make sure censor cannot clip out of screen
 	framePos = frame.GetPosition()
 	frameSize = frame.GetSize()
 	buffer.Clear()
@@ -283,6 +296,15 @@ def camouflage(frame, event, buffer):
 			else:
 				previous = here
 
+frames = []
+def addFrame(frame):
+	frames.append(frame)
+def removeFrame(frame):
+	frames.remove(frame)
+	if len(frames) == 0:
+		print("No frames left. exiting.")
+		wx.Exit()
+
 app = wx.App()
-f = Censor()
+addFrame(Censor())
 app.MainLoop()
