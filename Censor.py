@@ -1,5 +1,8 @@
 import wx
 import pyautogui as pag
+from mss import mss # Screenshots
+# from PIL import Image
+from time import perf_counter as timePoint
 pag.PAUSE = 0
 
 NOTHINGFUNC = lambda *args, **kwargs: None
@@ -65,6 +68,10 @@ class Censor(wx.Frame):
 		self.dragElements = None
 		self.dragPrevPos = None
 
+		self.timer = wx.Timer(self)
+		self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)
+		self.timer.Start(1000)
+
 	def resize(self, newSize):
 		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
 		size = self.GetSize()
@@ -81,7 +88,11 @@ class Censor(wx.Frame):
 	def getRegionSize(self, size):
 		return (self.regionSteps(size.width), self.regionSteps(size.height))
 
+	def OnTimer(self, event):
+		self.Refresh()
+
 	def OnPaint(self, event=None):
+		startPoint = timePoint()
 		dc = wx.PaintDC(self)
 		dc.Clear()
 
@@ -91,6 +102,7 @@ class Censor(wx.Frame):
 				element.render(self, self.buffer)
 
 		dc.DrawBitmap(wx.Bitmap(self.buffer), 0, 0) # Commit the buffer
+		print(f"Render took {round(timePoint() - startPoint, 4)}s")
 
 	def elementsHit(self, x, y):
 		results = []
@@ -105,7 +117,7 @@ class Censor(wx.Frame):
 		# Moving the window
 		spot = event.GetPosition()
 		if event.Dragging():
-			print(f"Dragging, {spot}, {self.dragLength}, {self.dragElements}")
+			# print(f"Dragging, {spot}, {self.dragLength}, {self.dragElements}")
 			self.dragLength += 1 # Number of drag events part of this drag, including this event
 			if not self.dragStartPos: # First event
 				self.dragStartPos = spot
@@ -132,7 +144,7 @@ class Censor(wx.Frame):
 	def OnRightDown(self, event):
 		self.currentCensor = (self.currentCensor + 1) % len(self.censors)
 		print(f"Now using censor {self.currentCensor}, {self.censors[self.currentCensor][0]}")
-		self.OnPaint()
+		self.Refresh()
 
 	# def OnEnterWindow(self, event):
 	# 	pass
@@ -194,6 +206,7 @@ def onClick(self, frame, event):
 	print("Close button pressed. Closing.")
 	quit() # TODO: is this correct?
 
+# Censors
 @Censor.censor
 def black(frame, event, buffer):
 	buffer.Clear()
@@ -201,6 +214,74 @@ def black(frame, event, buffer):
 @Censor.censor
 def white(frame, event, buffer):
 	buffer.Clear(value = bytes([255]))
+
+width, height = pag.size()
+ssTaker = mss()
+monitor = ssTaker.monitors[1]
+def screenshot(x, y, h, w): 
+	output = f"sct-{x}x{y}_{w}x{h}.png"
+	sct_img = ssTaker.grab({"top": y, "left": x, "width": w, "height": h})
+	# Image.frombytes('RGB', sct_img.size, sct_img.bgra, 'raw', 'BGRX').show()
+	return (sct_img.raw, sct_img.size)
+
+# REMEMBER
+# The image is arranged as such:
+# 1 2 3 4
+# 5 6 7 8
+
+offset = 1 # Distance from window to capture
+@Censor.censor
+def camouflage(frame, event, buffer): 
+	framePos = frame.GetPosition()
+	frameSize = frame.GetSize()
+	buffer.Clear()
+
+	top, topSize = screenshot(framePos.x, framePos.y - offset, 1, frameSize.width)
+	bottom, _ = screenshot(framePos.x, framePos.y + frameSize.height + offset, 1, frameSize.width)
+
+	left, leftSize = screenshot(framePos.x - offset, framePos.y, frameSize.height, 1)
+	right, _ = screenshot(framePos.x + frameSize.width + offset, framePos.y, frameSize.height, 1)
+
+	# Skip every leftsize.width th item to only get first row!!
+	top, bottom, left, right = ((top, 1), (bottom, 1), (left, leftSize.width), (right, leftSize.width)) 
+
+	ssScale = (leftSize.height) // frameSize.height # Compensate for 2x on retina displays
+	def get(strip, pos): # Relative to window
+		buffer, skip = strip
+		pos *= ssScale * skip
+		return (buffer[pos*4 + 2], buffer[pos*4 + 1], buffer[pos*4]) # (r, g, b)
+
+	for y in range(frameSize.height):
+		lr, lg, lb = get(left, y)
+		rr, rg, rb = get(right, y)
+		if abs(lr - rr) + abs(lg - rg) + abs(lb - rb) < 5:
+			for x in range(frameSize.width):
+				buffer.SetRGB(x, y, lr, lg, lb)
+	for x in range(frameSize.width):
+		tr, tg, tb = get(top, x)
+		br, bg, bb = get(bottom, x)
+		if abs(tr - br) + abs(tg - bg) + abs(tb - bb) < 5:
+			for y in range(frameSize.height):
+				buffer.SetRGB(x, y, tr, tg, tb)
+
+	# Why is there no better way
+	bufferGet = lambda x, y: (buffer.GetRed(x, y), buffer.GetGreen(x, y), buffer.GetBlue(x, y))
+	for x in range(frameSize.width):
+		if bufferGet(x, 0) == (0, 0, 0): # Yes it may actually be black but eh
+			buffer.SetRGB(x, 0, *get(top, x))
+	for y in range(frameSize.height):
+		if bufferGet(0, y) == (0, 0, 0): 
+			buffer.SetRGB(0, y, *get(top, y))
+
+	for y in range(1, frameSize.height):
+		previous = bufferGet(0, y)
+		for x in range(1, frameSize.width):
+			here = bufferGet(x, y)
+			if here == (0, 0, 0) and here != previous and here != bufferGet(x, y-1):
+				buffer.SetRGB(x, y, previous[0], previous[1], previous[2])
+				previous = previous
+			else:
+				previous = here
 
 app = wx.App()
 f = Censor()
