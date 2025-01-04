@@ -7,14 +7,16 @@ pag.PAUSE = 0
 
 NOTHINGFUNC = lambda *args, **kwargs: None
 class Element: 
-	def __init__(self, name):
+	def __init__(self, name, permeable = True):
 		self.name = name
-		for part in ["getRegion", "onClick", "onDrag", "render"]:
+		self.permeable = permeable # If multiple elements will get the event or just this one
+		for part in ["getRegion", "onClick", "onDrag", "render", "onDragEnd"]:
 			self.newPart(part)
 
 	# getRegion(self, frame) returns [x, y, h, w] within which it is considered to be within the element
 	# onClick(self, frame, event) is called on a left click
 	# onDrag(self, frame, event, previous, start, end, dragLength) is called after the first drag event.
+	# onDragEnd(self, frame, event, previous, start, end, dragLength) is called at the end of a drag.
 	# render(self, frame, dc) is called when to render the element when window is in focus.
 
 	def newPart(self, name):
@@ -40,7 +42,7 @@ class Censor(wx.Frame):
 	def censor(cls, function):
 		cls.censors.append([function.__name__, function])
 
-	def __init__(self):
+	def __init__(self, x = None, y = None):
 		style = ( wx.CLIP_CHILDREN | wx.STAY_ON_TOP | wx.FRAME_NO_TASKBAR |
 				  wx.NO_BORDER | wx.FRAME_SHAPED  )
 		wx.Frame.__init__(self, None, title='Censor', style = style)
@@ -60,8 +62,11 @@ class Censor(wx.Frame):
 		self.minSize = 20 # Minimum height & width
 		self.resize(wx.Size(height, width))
 
-		screenSize = wx.DisplaySize() # Place at center of screen
-		self.SetPosition((screenSize[0]//2 - width//2, screenSize[1]//2 - height//2))
+		if x is None and y is None:
+			screenSize = wx.DisplaySize() # Place at center of screen
+			self.SetPosition((screenSize[0]//2 - width//2, screenSize[1]//2 - height//2))
+		else:
+			self.SetPosition((x, y))
 
 		self.dragStartPos = None
 		self.dragLength = 0
@@ -115,14 +120,17 @@ class Censor(wx.Frame):
 			sx, sy, h, w = element.getRegion(self)
 			ex, ey = (sx + w, sy + h)
 			if sx <= x < ex and sy <= y < ey:
-				results.append(element)
+				if not element.permeable:
+					return [element]
+				else:
+					results.append(element)
 		return results
 
 	helpText = "Right click to change mode.\n" \
 	           "Drag right or bottom sides to resize.\n" \
 	           "Drag anywhere else to move.\n" \
 	           "Click top left to close \n" \
-	           "Middle click to spawn another censor."
+	           "Drag from the top left for another censor."
 
 	def OnMouse(self, event):
 		event.GetEventObject().SetToolTip(self.helpText)
@@ -146,8 +154,10 @@ class Censor(wx.Frame):
 
 	def OnLeftUp(self, event):
 		spot = event.GetPosition()
-		if self.dragLength: # Ignore ending a drag
+		if self.dragLength: # Ending a drag
 			if not (spot == self.dragStartPos and self.dragLength == 1): # Unless it is a 0-pixel accidental drag
+				for element in self.dragElements:
+					element.onDragEnd(self, event, self.dragPrevPos, self.dragStartPos, spot, self.dragLength)
 				return
 		elementsHit = self.elementsHit(spot.x, spot.y)
 		for element in elementsHit:
@@ -207,17 +217,24 @@ def onDrag(self, frame, event, previous, start, end, dragLength):
 	size.height += delta.y
 	frame.resize(size)
 
-close = Element("Close")
-Censor.elements.append(close)
-@close.getRegionCall
+manage = Element("Manage", permeable = False)
+Censor.elements.append(manage)
+@manage.getRegionCall
 def getRegion(self, frame):
 	return [0, 0, 10, 10]
 
-@close.onClickCall
+@manage.onClickCall
 def onClick(self, frame, event):
-	print("Close button pressed. Closing.")
+	print("Manage button pressed. Closing.")
 	frame.Close()
 	removeFrame(frame)
+
+@manage.onDragEndCall
+def onDragEnd(self, frame, event, previous, start, end, dragLength):
+	framePos = frame.GetPosition()
+	newFrame = Censor(x = framePos.x + end.x, y = framePos.y + end.y)
+	addFrame(newFrame)
+	print("New censor created.")
 
 # Censors
 @Censor.censor
