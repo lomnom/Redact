@@ -1,9 +1,10 @@
 import wx
+import wx.adv
 import pyautogui as pag
-from mss import mss # Screenshots
-# from PIL import Image
-from time import perf_counter as timePoint
 pag.PAUSE = 0
+from mss import mss # Screenshots
+from time import perf_counter as timePoint
+import sys, traceback # For error display
 
 NOTHINGFUNC = lambda *args, **kwargs: None
 class Element: 
@@ -80,6 +81,13 @@ class Censor(wx.Frame):
 
 		# self.mouseHover = False # If the mouse is currently hovering over the censor
 
+		self.hoverText = "Right click to change mode.\n" \
+		                 "Drag right or bottom sides to resize.\n" \
+		                 "Drag anywhere else to move.\n" \
+		                 "Click top left to close. \n" \
+		                 "Drag from the top left for another censor.\n" \
+		                 "@ https://github.com/lomnom/Redact"
+
 	def resize(self, newSize):
 		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
 		size = self.GetSize()
@@ -126,15 +134,8 @@ class Censor(wx.Frame):
 					results.append(element)
 		return results
 
-	helpText = "Right click to change mode.\n" \
-	           "Drag right or bottom sides to resize.\n" \
-	           "Drag anywhere else to move.\n" \
-	           "Click top left to close. \n" \
-	           "Drag from the top left for another censor.\n" \
-	           "@ https://github.com/lomnom/Redact"
-
 	def OnMouse(self, event):
-		event.GetEventObject().SetToolTip(self.helpText)
+		event.GetEventObject().SetToolTip(self.hoverText)
 		# Moving the window
 		spot = event.GetPosition()
 		if event.Dragging():
@@ -354,6 +355,31 @@ def camouflage(frame, event, buffer): # TODO: make sure censor cannot clip out o
 				previous = previous
 			else:
 				previous = here
+
+class ExceptionWindow(wx.Frame):
+	def __init__(self, text): # TODO: Make it copiable
+		wx.Frame.__init__(self, None)
+		self.text = wx.StaticText(self, style = wx.NO_BORDER)
+		self.text.LabelText = text
+		self.text.Centre()
+		self.SetSize(self.text.GetSize())
+		screenSize = wx.DisplaySize() # Place at center of screen
+		self.SetPosition((screenSize[0]//2, screenSize[1]//2))
+		self.Show(True)
+
+eFrame = None
+def handleException(eType, value, trace):
+	global eFrame
+	if eFrame is not None: # Dont spam if its a repeating issue
+		return
+	exception = traceback.format_exception(eType, value, trace)
+	exception = "".join(exception)
+	text = f"[Click on window to copy this text]\n"
+	text += "Error in censor! Please make a bug report at github.com/lomnom/Redact with the following text:\n"
+	text += exception
+	eFrame = ExceptionWindow(text)
+
+sys.excepthook = handleException
 
 frames = []
 def addFrame(frame):
