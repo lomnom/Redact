@@ -129,8 +129,9 @@ class Censor(wx.Frame):
 	helpText = "Right click to change mode.\n" \
 	           "Drag right or bottom sides to resize.\n" \
 	           "Drag anywhere else to move.\n" \
-	           "Click top left to close \n" \
-	           "Drag from the top left for another censor."
+	           "Click top left to close. \n" \
+	           "Drag from the top left for another censor.\n" \
+	           "@ https://github.com/lomnom/Redact"
 
 	def OnMouse(self, event):
 		event.GetEventObject().SetToolTip(self.helpText)
