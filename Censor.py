@@ -343,7 +343,7 @@ def camouflage(frame, event, buffer): # TODO: make sure censor cannot clip out o
 			buffer.SetRGB(x, 0, *get(top, x))
 	for y in range(frameSize.height):
 		if bufferGet(0, y) == (0, 0, 0): 
-			buffer.SetRGB(0, y, *get(top, y))
+			buffer.SetRGB(0, y, *get(left, y))
 
 	for y in range(1, frameSize.height):
 		previous = bufferGet(0, y)
