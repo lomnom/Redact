@@ -217,11 +217,12 @@ def onDrag(self, frame, event, previous, start, end, dragLength):
 	size.height += delta.y
 	frame.resize(size)
 
+manageSize = 10 # Size of the manage square
 manage = Element("Manage", permeable = False)
 Censor.elements.append(manage)
 @manage.getRegionCall
 def getRegion(self, frame):
-	return [0, 0, 10, 10]
+	return [0, 0, manageSize, manageSize]
 
 @manage.onClickCall
 def onClick(self, frame, event):
@@ -232,7 +233,7 @@ def onClick(self, frame, event):
 @manage.onDragEndCall
 def onDragEnd(self, frame, event, previous, start, end, dragLength):
 	framePos = frame.GetPosition()
-	newFrame = Censor(x = framePos.x + end.x, y = framePos.y + end.y)
+	newFrame = Censor(x = framePos.x + end.x - manageSize//2, y = framePos.y + end.y - manageSize//2)
 	addFrame(newFrame)
 	print("New censor created.")
 
