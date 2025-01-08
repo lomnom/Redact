@@ -112,7 +112,7 @@ class Censor(wx.Frame):
 		# 	for element in self.elements:
 		# 		element.render(self, dc)
 
-		# print(f"Render took {round(timePoint() - startPoint, 4)}s")
+		print(f"Render took {round(timePoint() - startPoint, 4)}s")
 
 	def elementsHit(self, x, y):
 		results = []
@@ -282,18 +282,59 @@ def camouflage(frame, event, buffer): # TODO: make sure censor cannot clip out o
 		pos *= ssScale * skip
 		return (buffer[pos*4 + 2], buffer[pos*4 + 1], buffer[pos*4]) # (r, g, b)
 
-	for y in range(frameSize.height):
-		lr, lg, lb = get(left, y)
-		rr, rg, rb = get(right, y)
-		if abs(lr - rr) + abs(lg - rg) + abs(lb - rb) < 5:
-			for x in range(frameSize.width):
-				buffer.SetRGB(x, y, lr, lg, lb)
-	for x in range(frameSize.width):
-		tr, tg, tb = get(top, x)
-		br, bg, bb = get(bottom, x)
-		if abs(tr - br) + abs(tg - bg) + abs(tb - bb) < 5:
-			for y in range(frameSize.height):
-				buffer.SetRGB(x, y, tr, tg, tb)
+	# The default margin specifies the distance where they are considered to be the same
+	def closeEnough(ar, ag, ab, br, bg, bb, margin = 4):
+		return abs(ar - br) + abs(ag - bg) + abs(ab - bb) <= margin
+
+	# Detect congruence from top to bottom or left to right, and render those
+	VERT, HORIZ = (False, True)
+	regions = [] # [[VERT/HORIZ, start, end (so range(start, end))], ...]
+
+	def getRegions(sideA, sideB, sideSize, axis, regions):
+		pr, pg, pb = (-99, -99, -99) # Last colour
+		lastMatches = False # If the last index matched both sides
+		for pos in range(sideSize):
+			ar, ag, ab = get(sideA, pos)
+			br, bg, bb = get(sideB, pos)
+			if closeEnough(ar, ag, ab, br, bg, bb):
+				if lastMatches:
+					if closeEnough(pr, pg, pb, ar, ag, ab): # Still within the current region
+						pass
+					else: # Match but chunk the region because its too different
+						regions[-1][2] = pos # End the previous region here 
+						regions.append([axis, pos, None]) # New region here
+				else:
+					regions.append([axis, pos, None]) # New region
+
+				lastMatches = True
+				pr, pg, pb = ar, ag, ab
+			else:
+				if lastMatches: # End region
+					regions[-1][2] = pos
+				else:
+					pass # This is the empty case
+				lastMatches = False
+		if regions and regions[-1][2] is None:
+			regions[-1][2] = sideSize
+	getRegions(top, bottom, frameSize.width, HORIZ, regions)
+	getRegions(left, right, frameSize.height, VERT, regions)
+
+	regions.sort(key = lambda region: region[2] - region[1], reverse = True) # Sort by region length, big to small
+
+	for region in regions:
+		axis, start, end = region
+		if axis == HORIZ:
+			for x in range(start, end):
+				r, g, b = get(top, x)
+				for y in range(frameSize.height):
+					buffer.SetRGB(x, y, r, g, b)
+		elif axis == VERT:
+			for y in range(start, end):
+				r, g, b = get(left, y)
+				for x in range(frameSize.width):
+					buffer.SetRGB(x, y, r, g, b)
+
+	# print(regions)
 
 	# Why is there no better way
 	bufferGet = lambda x, y: (buffer.GetRed(x, y), buffer.GetGreen(x, y), buffer.GetBlue(x, y))
