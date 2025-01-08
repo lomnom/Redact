@@ -6,14 +6,20 @@ pip3 install pyinstaller
 brew install create-dmg
 ```
 ### Build
-1. Create .app
+1. Make a virtualenv with only needed libraries 
+```bash
+python3 -m venv .
+source ./bin/activate
+pip3 install wxPython mss
+```
+2. Create .app
 ```bash
 pyinstaller --name 'Redact' \
             --icon 'Icon.ico' \
             --windowed  \
             Censor.py
 ```
-2. Create .dmg
+3. Create .dmg
 ```bash
 cd dist
 mkdir -p dmg
@@ -30,7 +36,15 @@ create-dmg \
   "Redact.dmg" \
   "dmg/"
 ```
-3. Within dist there will be a `Redact.dmg`, which is the final product
+4. Cleanup (MAKE SURE YOU ARE WITHIN `dist` AND DOUBLE CHECK THE `rm` COMMAND TO NOT NUKE YOUR FILES!)
+```bash
+cd ..
+deactivate
+rm -rf bin build include lib
+rm pyvenv.cfg Redact.spec
+```
+5. Within dist there will be a `Redact.dmg`, which is the final product. 
+
 Credit: based on https://medium.com/@jackhuang.wz/in-just-two-steps-you-can-turn-a-python-script-into-a-macos-application-installer-6e21bce2ee71
 
 > Others pending

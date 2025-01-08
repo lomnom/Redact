@@ -1,7 +1,5 @@
 import wx
 import wx.adv
-import pyautogui as pag
-pag.PAUSE = 0
 from mss import mss # Screenshots
 from time import perf_counter as timePoint
 import sys, traceback # For error display
@@ -247,7 +245,6 @@ def black(frame, event, buffer):
 def white(frame, event, buffer):
 	buffer.Clear(value = bytes([255]))
 
-width, height = pag.size()
 ssTaker = mss()
 monitor = ssTaker.monitors[1]
 def screenshot(x, y, h, w): 

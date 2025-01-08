@@ -20,7 +20,7 @@ Get it here: https://github.com/lomnom/Redact/releases!!! A binary is only avail
 1. Have python3 installed
 2. Install the needed dependencies:
    ```bash
-   pip3 install PyAutoGUI wxPython mss
+   pip3 install wxPython mss
    ```
 3. Clone this repo
    ```bash
