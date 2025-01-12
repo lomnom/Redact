@@ -8,7 +8,7 @@ NOTHINGFUNC = lambda *args, **kwargs: None
 class Element: 
 	def __init__(self, name, permeable = True):
 		self.name = name
-		self.permeable = permeable # If multiple elements will get the event or just this one
+		self.permeable = permeable # If all overlapping elements get hit or just this one
 		for part in ["getRegion", "onClick", "onDrag", "render", "onDragEnd"]:
 			self.newPart(part)
 
@@ -45,12 +45,14 @@ class Censor(wx.Frame):
 		style = ( wx.CLIP_CHILDREN | wx.STAY_ON_TOP | wx.FRAME_NO_TASKBAR |
 				  wx.NO_BORDER | wx.FRAME_SHAPED  )
 		wx.Frame.__init__(self, None, title='Censor', style = style)
-		self.Bind(wx.EVT_MOTION, self.OnMouse)
-		# self.Bind(wx.EVT_ENTER_WINDOW, self.OnEnterWindow)
-		# self.Bind(wx.EVT_LEAVE_WINDOW, self.OnLeaveWindow)
-		self.Bind(wx.EVT_PAINT, self.OnPaint)
+		self.Bind(wx.EVT_MOUSE_EVENTS, self.OnMouse)
+		self.Bind(wx.EVT_MOTION, self.OnMouseMove)
 		self.Bind(wx.EVT_LEFT_UP, self.OnLeftUp)
 		self.Bind(wx.EVT_RIGHT_DOWN, self.OnRightDown)
+		# self.Bind(wx.EVT_ENTER_WINDOW, self.OnEnterWindow)
+		self.Bind(wx.EVT_LEAVE_WINDOW, self.OnLeaveWindow)
+		self.Bind(wx.EVT_PAINT, self.OnPaint)
+
 		self.Show(True)
 
 		height = 50 # Initial dimensions
@@ -85,6 +87,7 @@ class Censor(wx.Frame):
 		                 "Click top left to close. \n" \
 		                 "Drag from the top left for another censor.\n" \
 		                 "@ https://github.com/lomnom/Redact"
+		self.currentCursorIcon = None
 
 	def resize(self, newSize):
 		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
@@ -132,10 +135,52 @@ class Censor(wx.Frame):
 					results.append(element)
 		return results
 
-	def OnMouse(self, event):
-		event.GetEventObject().SetToolTip(self.hoverText)
-		# Moving the window
+	# If it is dragging and an entry with dragging does not exist, it will fallback on the non-dragging entry.
+	cursors = [] # [[set([Element, Element, ...]), cursor, dragging?], ...]
+	@classmethod
+	def addCursor(cls, elements, cursor, dragging):
+		cls.cursors.append([set(elements), cursor, dragging])
+
+	@classmethod
+	def decideCursor(cls, hit, dragging):
+		hit = set(hit)
+		nonDragging = None
+		for mustHit, cursor, isDragging in cls.cursors:
+			if mustHit == hit:
+				if dragging:
+					if isDragging:
+						return cursor
+					else:
+						nonDragging = cursor
+				else:
+					return cursor
+		return nonDragging 
+
+	def OnMouse(self, event): # TODO: This creates large CPU usage.
+		self.UnsetToolTip() # Make it disappear when you move
+		self.SetToolTip(self.hoverText)
+
 		spot = event.GetPosition()
+		if event.Dragging() and self.dragStartPos is not None:
+			icon = self.decideCursor(self.dragElements, True)	
+		else:
+			hits = self.elementsHit(spot.x, spot.y)
+			icon = self.decideCursor(hits, False)
+
+		if icon is not None:
+			if self.currentCursorIcon != icon:
+				wx.SetCursor(wx.Cursor(icon)) # NOTE: May not work on some platforms. TODO: guarantee.
+				self.currentCursorIcon = icon
+
+	def OnLeaveWindow(self, event):
+		if self.dragStartPos is None:
+			self.currentCursorIcon = None
+			wx.SetCursor(wx.Cursor(wx.CURSOR_NONE))
+
+	def OnMouseMove(self, event):
+		spot = event.GetPosition()
+
+		# Moving the window
 		if event.Dragging():
 			# print(f"Dragging, {spot}, {self.dragLength}, {self.dragElements}")
 			self.dragLength += 1 # Number of drag events part of this drag, including this event
@@ -151,6 +196,7 @@ class Censor(wx.Frame):
 			self.dragElements = None
 			self.dragLength = 0
 			self.dragPrevPos = None
+		event.Skip()
 
 	def OnLeftUp(self, event):
 		spot = event.GetPosition()
@@ -159,20 +205,18 @@ class Censor(wx.Frame):
 				for element in self.dragElements:
 					element.onDragEnd(self, event, self.dragPrevPos, self.dragStartPos, spot, self.dragLength)
 				return
-		elementsHit = self.elementsHit(spot.x, spot.y)
-		for element in elementsHit:
+		for element in self.elementsHit(spot.x, spot.y):
 			element.onClick(self, event)
+		event.Skip()
 
 	def OnRightDown(self, event):
 		self.currentCensor = (self.currentCensor + 1) % len(self.censors)
 		print(f"Now using censor {self.currentCensor}, {self.censors[self.currentCensor][0]}")
 		self.Refresh()
+		event.Skip()
 
 	# def OnEnterWindow(self, event):
 	# 	self.mouseHover = True
-
-	# def OnLeaveWindow(self, event):
-	# 	self.mouseHover = False
 
 # Let the frame be dragged around
 drag = Element("Dragger")
@@ -187,6 +231,7 @@ def onDrag(self, frame, event, previous, start, end, dragLength):
 	delta = end - start
 	oldPos = frame.GetPosition()
 	frame.SetPosition(oldPos + delta)
+Censor.addCursor([drag], wx.CURSOR_BULLSEYE, False)
 
 rResize = Element(f"Right resize")
 Censor.elements.append(rResize)
@@ -201,6 +246,7 @@ def onDrag(self, frame, event, previous, start, end, dragLength):
 	size = frame.GetSize()
 	size.width += delta.x
 	frame.resize(size)
+Censor.addCursor([rResize], wx.CURSOR_SIZEWE, False)
 
 # Very similar code
 bResize = Element(f"Bottom resize")
@@ -216,6 +262,8 @@ def onDrag(self, frame, event, previous, start, end, dragLength):
 	size = frame.GetSize()
 	size.height += delta.y
 	frame.resize(size)
+Censor.addCursor([bResize], wx.CURSOR_SIZENS, False)
+Censor.addCursor([rResize, bResize], wx.CURSOR_SIZENWSE, False)
 
 manageSize = 10 # Size of the manage square
 manage = Element("Manage", permeable = False)
@@ -223,6 +271,8 @@ Censor.elements.append(manage)
 @manage.getRegionCall
 def getRegion(self, frame):
 	return [0, 0, manageSize, manageSize]
+Censor.addCursor([manage], wx.CURSOR_HAND, False)
+Censor.addCursor([manage], wx.CURSOR_CROSS, True)
 
 @manage.onClickCall
 def onClick(self, frame, event):
@@ -372,9 +422,8 @@ def handleException(eType, value, trace):
 		return
 	exception = traceback.format_exception(eType, value, trace)
 	exception = "".join(exception)
-	text = f"[Click on window to copy this text]\n"
-	text += "Error in censor! Please make a bug report at github.com/lomnom/Redact with the following text:\n"
-	text += exception
+	text = "Error in censor! Please make a bug report at github.com/lomnom/Redact with the following text:\n"
+	text += exception + '\n\n'
 	eFrame = ExceptionWindow(text)
 
 sys.excepthook = handleException
