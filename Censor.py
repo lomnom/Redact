@@ -408,11 +408,13 @@ class ExceptionWindow(wx.Frame):
 	def __init__(self, text): # TODO: Make it copiable
 		wx.Frame.__init__(self, None)
 		self.text = wx.StaticText(self, style = wx.NO_BORDER)
+		self.text = wx.TextCtrl(self, wx.ID_ANY, text, style=wx.TE_READONLY|wx.NO_BORDER)
 		self.text.LabelText = text
 		self.text.Centre()
 		self.SetSize(self.text.GetSize())
 		screenSize = wx.DisplaySize() # Place at center of screen
 		self.SetPosition((screenSize[0]//2, screenSize[1]//2))
+		self.text.SetPosition((0, 0))
 		self.Show(True)
 
 eFrame = None
