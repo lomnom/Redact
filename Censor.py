@@ -296,7 +296,7 @@ Censor.addCursor([manage], wx.CURSOR_CROSS, True)
 @manage.onClickCall
 def onClick(self, frame, event):
 	print("Manage button pressed. Closing.")
-	frame.Close()
+	frame.Show(False) # doing frame.Close(True) causes a segmentation fault for some reason.
 	removeFrame(frame)
 
 @manage.onDragEndCall
