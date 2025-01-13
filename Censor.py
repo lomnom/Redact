@@ -62,6 +62,7 @@ class Censor(wx.Frame):
 
 		self.minSize = 20 # Minimum height & width
 		self.resize(wx.Size(height, width))
+		self.slowResizePatch() # Ugly patch for slow resizing, must be run after a resize.
 
 		if x is None and y is None:
 			screenSize = wx.DisplaySize() # Place at center of screen
@@ -88,6 +89,23 @@ class Censor(wx.Frame):
 		                 "Drag from the top left for another censor.\n" \
 		                 "@ https://github.com/lomnom/Redact"
 		self.currentCursorIcon = None
+
+	def slowResizePatch(self): # Implements a buffer for the size
+		self._SetSize = self.SetSize
+		self._GetSize = self.GetSize
+		self.targetSize = self._GetSize()
+		def GetSize():
+			nonlocal self
+			return self.targetSize
+		def SetSize(size):
+			nonlocal self
+			if type(size) == wx.Size:
+				self.targetSize = size
+			else:
+				self.targetSize = wx.Size(size)
+			self._SetSize(size)
+		self.GetSize = GetSize
+		self.SetSize = SetSize
 
 	def resize(self, newSize):
 		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
@@ -189,6 +207,7 @@ class Censor(wx.Frame):
 				self.dragElements = self.elementsHit(spot.x, spot.y)
 			else:
 				for element in self.dragElements:
+					# The first call will have dragLength 2
 					element.onDrag(self, event, self.dragPrevPos, self.dragStartPos, spot, self.dragLength)
 			self.dragPrevPos = spot
 		else:
@@ -408,7 +427,6 @@ def camouflage(frame, event, buffer): # TODO: make sure censor cannot clip out o
 class ExceptionWindow(wx.Frame):
 	def __init__(self, text): # TODO: Make it copiable
 		wx.Frame.__init__(self, None)
-		self.text = wx.StaticText(self, style = wx.NO_BORDER)
 		self.text = wx.TextCtrl(self, wx.ID_ANY, text, style=wx.TE_READONLY|wx.NO_BORDER)
 		self.text.LabelText = text
 		self.text.Centre()

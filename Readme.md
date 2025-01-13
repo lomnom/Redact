@@ -13,7 +13,7 @@ Controls:
 - Click on the window and hover for a few seconds to show a tooltip that tells you these controls.
 
 ## Installation
-#### Debian
+#### Linux (Debian)
 1. Install the needed dependencies:
 ```bash
 sudo apt-get install wxpython-tools
@@ -40,7 +40,7 @@ Categories=Utilities;" > ~/.local/share/applications/Redact.desktop
 ```
 
 #### MacOS
-##### Download
+##### Download (recommended)
 A `.dmg` binary release is available here: https://github.com/lomnom/Redact/releases
 ##### From source
 1. Have python3 installed
@@ -54,3 +54,8 @@ git clone https://github.com/lomnom/Redact
 cd Redact
 ```
 4. Run with `python3 Censor.py`
+
+#### Other
+This is the high-level procedure to get the censor running. The details are for you to figure out.
+1. Install the modules `wxPython` and `mss` from pip3
+2. Obtain a copy of this repo and run `Censor.py` with python3
