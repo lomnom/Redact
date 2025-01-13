@@ -175,7 +175,7 @@ class Censor(wx.Frame):
 	def OnLeaveWindow(self, event):
 		if self.dragStartPos is None:
 			self.currentCursorIcon = None
-			wx.SetCursor(wx.Cursor(wx.CURSOR_NONE))
+			wx.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
 	def OnMouseMove(self, event):
 		spot = event.GetPosition()
@@ -420,13 +420,16 @@ class ExceptionWindow(wx.Frame):
 eFrame = None
 def handleException(eType, value, trace):
 	global eFrame
-	if eFrame is not None: # Dont spam if its a repeating issue
-		return
 	exception = traceback.format_exception(eType, value, trace)
 	exception = "".join(exception)
 	text = "Error in censor! Please make a bug report at github.com/lomnom/Redact with the following text:\n"
-	text += exception + '\n\n'
-	eFrame = ExceptionWindow(text)
+	text += exception
+	if eFrame is not None: # Dont spam if its a repeating issue
+		print("Another error encountered but not shown:")
+		print(text)
+	else:
+		text += '\n\n'
+		eFrame = ExceptionWindow(text)
 
 sys.excepthook = handleException
 
