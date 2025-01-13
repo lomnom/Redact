@@ -60,9 +60,9 @@ class Censor(wx.Frame):
 
 		self.currentCensor = 0 # Index of current censor
 
+		self.targetSize = None
 		self.minSize = 20 # Minimum height & width
 		self.resize(wx.Size(height, width))
-		self.slowResizePatch() # Ugly patch for slow resizing, must be run after a resize.
 
 		if x is None and y is None:
 			screenSize = wx.DisplaySize() # Place at center of screen
@@ -90,24 +90,8 @@ class Censor(wx.Frame):
 		                 "@ https://github.com/lomnom/Redact"
 		self.currentCursorIcon = None
 
-	def slowResizePatch(self): # Implements a buffer for the size
-		self._SetSize = self.SetSize
-		self._GetSize = self.GetSize
-		self.targetSize = self._GetSize()
-		def GetSize():
-			nonlocal self
-			return self.targetSize
-		def SetSize(size):
-			nonlocal self
-			if type(size) == wx.Size:
-				self.targetSize = size
-			else:
-				self.targetSize = wx.Size(size)
-			self._SetSize(size)
-		self.GetSize = GetSize
-		self.SetSize = SetSize
-
 	def resize(self, newSize):
+		self.targetSize = wx.Size(newSize)
 		self.SetSize((max(self.minSize, newSize.width), max(self.minSize, newSize.height)))
 		size = self.GetSize()
 		self.buffer = wx.Image(size)
@@ -256,7 +240,7 @@ rResize = Element(f"Right resize")
 Censor.elements.append(rResize)
 @rResize.getRegionCall
 def getRegion(self, frame):
-	size = frame.GetSize()
+	size = frame.targetSize # Use this buffer in case resize has not completed yet
 	return [size.width - frame.rSize, 0, size.height, frame.rSize]
 
 @rResize.onDragCall
@@ -272,7 +256,7 @@ bResize = Element(f"Bottom resize")
 Censor.elements.append(bResize)
 @bResize.getRegionCall
 def getRegion(self, frame):
-	size = frame.GetSize()
+	size = frame.targetSize # Use this buffer in case resize has not completed yet
 	return [0, size.height - frame.bSize, frame.bSize, size.width]
 
 @bResize.onDragCall
@@ -296,7 +280,7 @@ Censor.addCursor([manage], wx.CURSOR_CROSS, True)
 @manage.onClickCall
 def onClick(self, frame, event):
 	print("Manage button pressed. Closing.")
-	frame.Show(False) # doing frame.Close(True) causes a segmentation fault for some reason.
+	frame.Close(True)
 	removeFrame(frame)
 
 @manage.onDragEndCall
