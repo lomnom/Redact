@@ -240,13 +240,13 @@ rResize = Element(f"Right resize")
 Censor.elements.append(rResize)
 @rResize.getRegionCall
 def getRegion(self, frame):
-	size = frame.targetSize # Use this buffer in case resize has not completed yet
+	size = frame.GetSize() 
 	return [size.width - frame.rSize, 0, size.height, frame.rSize]
 
 @rResize.onDragCall
 def onDrag(self, frame, event, previous, start, end, dragLength):
 	delta = end - previous
-	size = frame.GetSize()
+	size = frame.targetSize # Use this buffer in case resize has not completed yet
 	size.width += delta.x
 	frame.resize(size)
 Censor.addCursor([rResize], wx.CURSOR_SIZEWE, False)
@@ -256,13 +256,13 @@ bResize = Element(f"Bottom resize")
 Censor.elements.append(bResize)
 @bResize.getRegionCall
 def getRegion(self, frame):
-	size = frame.targetSize # Use this buffer in case resize has not completed yet
+	size = frame.GetSize() 
 	return [0, size.height - frame.bSize, frame.bSize, size.width]
 
 @bResize.onDragCall
 def onDrag(self, frame, event, previous, start, end, dragLength):
 	delta = end - previous
-	size = frame.GetSize()
+	size = frame.targetSize # Use this buffer in case resize has not completed yet
 	size.height += delta.y
 	frame.resize(size)
 Censor.addCursor([bResize], wx.CURSOR_SIZENS, False)
