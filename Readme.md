@@ -13,18 +13,44 @@ Controls:
 - Click on the window and hover for a few seconds to show a tooltip that tells you these controls.
 
 ## Installation
-### Standalone executable
-Get it here: https://github.com/lomnom/Redact/releases!!! A binary is only available for mac as of now. Check `Build.md` for steps I used to build those binaries.
+#### Debian
+1. Install the needed dependencies:
+```bash
+sudo apt-get install wxpython-tools
+pip3 -v install mss
+```
+3. Clone this repo
+```bash
+git clone https://github.com/lomnom/Redact
+cd Redact
+```
+4. Run with `python3 Censor.py`
+3. Install Redact to ~/.local and create an entry in Applications.
+```bash
+cd .. # If you start in the Redact directory
+mv Redact ~/.local/ # Note: Delete this file if it is not your first time installing.
+echo "[Desktop Entry]
+Type=Application
+Name=Redact
+GenericName=Utiliy
+Icon=$HOME/.local/Redact/Icon.ico
+Exec=/usr/bin/python3 $HOME/.local/Redact/Censor.py
+Terminal=false
+Categories=Utilities;" > ~/.local/share/applications/Redact.desktop
+```
 
-### From source
+#### MacOS
+##### Download
+A `.dmg` binary release is available here: https://github.com/lomnom/Redact/releases
+##### From source
 1. Have python3 installed
 2. Install the needed dependencies:
-   ```bash
-   pip3 install wxPython mss
-   ```
+```bash 
+pip3 install wxPython mss
+```
 3. Clone this repo
-   ```bash
-   git clone https://github.com/lomnom/Redact
-   cd Redact
-   ```
+```bash
+git clone https://github.com/lomnom/Redact
+cd Redact
+```
 4. Run with `python3 Censor.py`

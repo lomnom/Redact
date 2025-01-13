@@ -345,7 +345,8 @@ def camouflage(frame, event, buffer): # TODO: make sure censor cannot clip out o
 		for pos in range(sideSize):
 			ar, ag, ab = get(sideA, pos)
 			br, bg, bb = get(sideB, pos)
-			if closeEnough(ar, ag, ab, br, bg, bb):
+			# High margin to compensate for slight shadow on gnome
+			if closeEnough(ar, ag, ab, br, bg, bb, margin = 15): 
 				if lastMatches:
 					if closeEnough(pr, pg, pb, ar, ag, ab): # Still within the current region
 						pass
