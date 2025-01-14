@@ -52,6 +52,7 @@ class Censor(wx.Frame):
 		# self.Bind(wx.EVT_ENTER_WINDOW, self.OnEnterWindow)
 		self.Bind(wx.EVT_LEAVE_WINDOW, self.OnLeaveWindow)
 		self.Bind(wx.EVT_PAINT, self.OnPaint)
+		self.Bind(wx.EVT_WINDOW_DESTROY, self.OnDestroy)
 
 		self.Show(True)
 
@@ -217,6 +218,9 @@ class Censor(wx.Frame):
 		print(f"Now using censor {self.currentCensor}, {self.censors[self.currentCensor][0]}")
 		self.Refresh()
 		event.Skip()
+
+	def OnDestroy(self, event):
+		self.timer.Stop() # Else a segfault happens
 
 	# def OnEnterWindow(self, event):
 	# 	self.mouseHover = True
